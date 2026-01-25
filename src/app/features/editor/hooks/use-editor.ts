@@ -709,15 +709,92 @@ const buildEditor = ({
 			canvas.renderAll();
 		},
 		removeBackground: async () => {
-			return new Promise((resolve, reject) => {
-				// Placeholder for future background removal implementation
-				console.log('Background removal feature - ready for API integration');
-				reject(
-					new Error(
-						'Background removal is not yet implemented. Please integrate with a background removal service.',
-					),
-				);
-			});
+			const activeObject = canvas.getActiveObject();
+			if (!activeObject || activeObject.type !== 'image') {
+				return;
+			}
+
+			const imageObject = activeObject as fabric.Image;
+			
+			// Get base64 data url from the image
+			// We need to clone it to get the original image data without transformations if possible, 
+            // or just use toDataURL on the object
+            // Using toDataURL on the object captures current crop/filters which might be desired
+            // But usually we want to remove bg from the source image. 
+            // Let's try to get the original source if possible, but fabric images can be complex.
+            // Simple approach: get data URL of the image element
+            
+            // If it's already a data URL or local blob, we might need to convert it
+            // Ideally we use a helper to get base64 from the image element
+            
+            const element = imageObject.getElement() as HTMLImageElement;
+            if (!element) return;
+
+            // Create a canvas to extract base64
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = element.naturalWidth;
+            tempCanvas.height = element.naturalHeight;
+            const ctx = tempCanvas.getContext('2d');
+            if (!ctx) return;
+            
+            ctx.drawImage(element, 0, 0);
+            const base64 = tempCanvas.toDataURL('image/png');
+
+			try {
+				const response = await fetch('/api/remove-bg', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						image: base64,
+					}),
+				});
+
+				if (!response.ok) {
+                    const errorText = await response.text();
+					throw new Error(`Failed to remove background: ${response.statusText} - ${errorText}`);
+				}
+
+				const data = await response.json();
+                const newBase64 = `data:image/png;base64,${data.result_b64}`;
+
+                // Create new image from result
+                fabric.Image.fromURL(newBase64, {
+                    crossOrigin: 'anonymous'
+                }).then((newImage) => {
+                    // Calculate scale factors to maintain the same visual size
+                    // visual width = width * scaleX
+                    const activeObjectWidth = imageObject.width * imageObject.scaleX;
+                    const activeObjectHeight = imageObject.height * imageObject.scaleY;
+                    
+                    const scaleX = activeObjectWidth / newImage.width;
+                    const scaleY = activeObjectHeight / newImage.height;
+
+                    // Copy properties from old image
+                    newImage.set({
+                        left: imageObject.left,
+                        top: imageObject.top,
+                        // Do not copy width/height as the new image might have different natural dimensions (e.g. from API preview)
+                        scaleX: scaleX,
+                        scaleY: scaleY,
+                        angle: imageObject.angle,
+                        flipX: imageObject.flipX,
+                        flipY: imageObject.flipY,
+                    });
+
+                    // Replace old image
+                    canvas.remove(imageObject);
+                    canvas.add(newImage);
+                    canvas.setActiveObject(newImage);
+                    canvas.renderAll();
+                    save();
+                });
+
+			} catch (error) {
+				console.error('Background removal failed:', error);
+				throw error;
+			}
 		},
 		addStar: () => {
 			const points = createStarPoints(5, 200, 100);

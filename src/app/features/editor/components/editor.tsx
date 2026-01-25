@@ -24,6 +24,7 @@ import { RemoveBgSidebar } from './remove-bg-sidebar';
 import { StickersSidebar } from './stickers-sidebar';
 import { GradientSidebar } from './gradient-sidebar';
 import { LayersSidebar } from './layers-sidebar';
+import { UploadSidebar } from './upload-sidebar';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { projectStorage } from '@/app/features/projects/storage';
 
@@ -168,6 +169,41 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 		// intentionally depend on `init` to follow original contract; guard avoids re-init
 	}, [init]);
 
+	const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+		e.preventDefault();
+		e.stopPropagation();
+	}, []);
+
+	const handleDrop = useCallback(
+		(e: React.DragEvent<HTMLDivElement>) => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			if (!editor) return;
+
+			// Handle URL drop
+			const url = e.dataTransfer.getData('text/uri-list');
+			if (url) {
+				editor.addImage(url);
+				return;
+			}
+
+			// Handle file drop
+			if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+				const file = e.dataTransfer.files[0];
+				if (file.type.startsWith('image/')) {
+					const reader = new FileReader();
+					reader.onload = (f) => {
+						const result = f.target?.result as string;
+						if (result) editor.addImage(result);
+					};
+					reader.readAsDataURL(file);
+				}
+			}
+		},
+		[editor],
+	);
+
 	return (
 		<div className="h-screen flex flex-col bg-muted">
 			<Navbar
@@ -256,6 +292,11 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 					activeTool={activeTool}
 					onChangeActiveTool={onChangeActiveTool}
 				/>
+				<UploadSidebar
+					editor={editor}
+					activeTool={activeTool}
+					onChangeActiveTool={onChangeActiveTool}
+				/>
 				
 				
 				<main className=" flex-1  relative flex flex-col ">
@@ -269,6 +310,8 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 						ref={containerRef}
 						className="flex-1 overflow-hidden bg-muted"
 						style={{ minHeight: '400px' }}
+						onDrop={handleDrop}
+						onDragOver={handleDragOver}
 					>
 						<ContextMenuCanvas editor={editor}>
 							<canvas

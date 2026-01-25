@@ -116,56 +116,61 @@ export const ExportDialog = ({ editor, children }: ExportDialogProps) => {
 				return;
 			}
 
-			const { left, top, width, height } = workspace;
+			// Get the original workspace dimensions and position
+			const originalWidth = workspace.width || 800;
+			const originalHeight = workspace.height || 600;
+			const workspaceLeft = workspace.left ?? 0;
+			const workspaceTop = workspace.top ?? 0;
 
-			if (format === 'svg') {
-				const svg = canvas.toSVG({
-					viewBox: {
-						x: left || 0,
-						y: top || 0,
-						width: width || 800,
-						height: height || 600,
-					},
-					width: String(customWidth),
-					height: String(customHeight),
-				});
-				const blob = new Blob([svg], { type: 'image/svg+xml' });
-				downloadBlob(blob, `${filename}.svg`);
-			} else {
-				// Calculate multiplier to export at higher resolution
-				const widthMultiplier = customWidth / (width || 800);
-				const heightMultiplier = customHeight / (height || 600);
-				const multiplier = Math.max(widthMultiplier, heightMultiplier, 1);
+			// Save current viewport transform
+			const currentTransform = canvas.viewportTransform?.slice() as number[] | undefined;
 
-				const dataUrl = canvas.toDataURL({
-					format: format === 'jpg' ? 'jpeg' : format,
-					quality: quality / 100,
-					multiplier: multiplier,
-					left: left || 0,
-					top: top || 0,
-					width: width || 800,
-					height: height || 600,
-				});
+			// Reset viewport to identity matrix (no zoom/pan)
+			canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
-				// Resize to exact custom dimensions using canvas
-				const img = new window.Image();
-				img.crossOrigin = 'anonymous';
+			try {
+				if (format === 'svg') {
+					const svg = canvas.toSVG({
+						viewBox: {
+							x: workspaceLeft,
+							y: workspaceTop,
+							width: originalWidth,
+							height: originalHeight,
+						},
+						width: String(customWidth),
+						height: String(customHeight),
+					});
+					const blob = new Blob([svg], { type: 'image/svg+xml' });
+					downloadBlob(blob, `${filename}.svg`);
+				} else {
+					// Calculate multiplier for higher resolution export
+					const multiplier = Math.max(customWidth / originalWidth, customHeight / originalHeight, 1);
 
-				await new Promise<void>((resolve, reject) => {
-					img.onload = () => {
-						const resizeCanvas = document.createElement('canvas');
-						resizeCanvas.width = customWidth;
-						resizeCanvas.height = customHeight;
-						const ctx = resizeCanvas.getContext('2d');
+					// Use toCanvasElement to create an offscreen canvas without affecting the displayed canvas
+					const offscreenCanvas = canvas.toCanvasElement(multiplier, {
+						left: workspaceLeft,
+						top: workspaceTop,
+						width: originalWidth,
+						height: originalHeight,
+					});
 
-						if (ctx) {
-							// Use high quality image smoothing
-							ctx.imageSmoothingEnabled = true;
-							ctx.imageSmoothingQuality = 'high';
+					// Restore the original viewport transform IMMEDIATELY after creating offscreen canvas
+					if (currentTransform) {
+						canvas.setViewportTransform(currentTransform as [number, number, number, number, number, number]);
+					}
 
-							// Draw the image scaled to custom dimensions
-							ctx.drawImage(img, 0, 0, customWidth, customHeight);
+					// Create a resize canvas to get exact dimensions
+					const resizeCanvas = document.createElement('canvas');
+					resizeCanvas.width = customWidth;
+					resizeCanvas.height = customHeight;
+					const ctx = resizeCanvas.getContext('2d');
 
+					if (ctx) {
+						ctx.imageSmoothingEnabled = true;
+						ctx.imageSmoothingQuality = 'high';
+						ctx.drawImage(offscreenCanvas, 0, 0, customWidth, customHeight);
+
+						await new Promise<void>((resolve) => {
 							resizeCanvas.toBlob(
 								(blob) => {
 									if (blob) {
@@ -176,13 +181,18 @@ export const ExportDialog = ({ editor, children }: ExportDialogProps) => {
 								format === 'jpg' ? 'image/jpeg' : `image/${format}`,
 								quality / 100,
 							);
-						} else {
-							reject(new Error('Could not get canvas context'));
-						}
-					};
-					img.onerror = reject;
-					img.src = dataUrl;
-				});
+						});
+					}
+				}
+			} finally {
+				// Ensure transform is restored even if export fails
+				// Double check if it needs restoring here or if it was already restored
+				// If we threw error before manual restore, this block catches it
+				const current = canvas.viewportTransform;
+				const isIdentity = current && current[0] === 1 && current[3] === 1 && current[4] === 0 && current[5] === 0;
+				if (isIdentity && currentTransform) {
+					canvas.setViewportTransform(currentTransform as [number, number, number, number, number, number]);
+				}
 			}
 
 			setExportSuccess(true);

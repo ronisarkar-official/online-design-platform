@@ -12,7 +12,7 @@ import {
 	
 	
 	Layers,
-	
+	Upload,
 } from 'lucide-react';
 import { SidebarItem } from './sidebar-item';
 import { ActiveTool } from '../types';
@@ -51,12 +51,7 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
 					onClick={() => onChangeActiveTool('shapes')}
 				/>
 				
-				<SidebarItem
-					icon={Smile}
-					label="Stickers"
-					isActive={activeTool === 'stickers'}
-					onClick={() => onChangeActiveTool('stickers')}
-				/>
+				
 				
 				<SidebarItem
 					icon={Layers}
@@ -70,6 +65,12 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
 					label="Ai"
 					isActive={activeTool === 'ai'}
 					onClick={() => onChangeActiveTool('ai')}
+				/>
+				<SidebarItem
+					icon={Upload}
+					label="Upload"
+					isActive={activeTool === 'upload'}
+					onClick={() => onChangeActiveTool('upload')}
 				/>
 				<SidebarItem
 					icon={Settings}
