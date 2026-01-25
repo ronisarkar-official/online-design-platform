@@ -1,65 +1,139 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Plus, Search, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ProjectCard } from './features/projects/components/project-card';
+import { NewProjectDialog } from './features/projects/components/new-project-dialog';
+import { projectStorage } from './features/projects/storage';
+import { Project } from './features/projects/types';
 
 export default function Home() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+	const [projects, setProjects] = useState<Project[]>([]);
+	const [searchQuery, setSearchQuery] = useState('');
+	const [showNewProject, setShowNewProject] = useState(false);
+
+	// Load projects on mount
+	useEffect(() => {
+		loadProjects();
+	}, []);
+
+	const loadProjects = () => {
+		const allProjects = projectStorage.getAll();
+		// Sort by updated date (newest first)
+		allProjects.sort((a, b) => b.updatedAt - a.updatedAt);
+		setProjects(allProjects);
+	};
+
+	const handleDelete = (id: string) => {
+		projectStorage.delete(id);
+		loadProjects();
+	};
+
+	// Filter projects based on search query
+	const filteredProjects = projects.filter((project) =>
+		project.name.toLowerCase().includes(searchQuery.toLowerCase()),
+	);
+
+	return (
+		<div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+			{/* Header */}
+			<header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center space-x-3">
+							<div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+								<Sparkles className="w-6 h-6 text-white" />
+							</div>
+							<div>
+								<h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+									Image Editor
+								</h1>
+								<p className="text-sm text-gray-500">Create stunning designs</p>
+							</div>
+						</div>
+
+						<Button
+							onClick={() => setShowNewProject(true)}
+							size="lg"
+							className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+							<Plus className="w-5 h-5 mr-2" />
+							New Project
+						</Button>
+					</div>
+				</div>
+			</header>
+
+			{/* Main Content */}
+			<main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+				{/* Search Bar */}
+				{projects.length > 0 && (
+					<div className="mb-8">
+						<div className="relative max-w-md">
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+							<Input
+								type="text"
+								placeholder="Search projects..."
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								className="pl-10"
+							/>
+						</div>
+					</div>
+				)}
+
+				{/* Projects Grid */}
+				{filteredProjects.length > 0 ? (
+					<>
+						<h2 className="text-lg font-semibold text-gray-900 mb-4">
+							Your Projects ({filteredProjects.length})
+						</h2>
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+							{filteredProjects.map((project) => (
+								<ProjectCard
+									key={project.id}
+									project={project}
+									onDelete={handleDelete}
+								/>
+							))}
+						</div>
+					</>
+				) : projects.length > 0 ? (
+					// No search results
+					<div className="text-center py-12">
+						<Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+						<h3 className="text-lg font-semibold text-gray-900 mb-2">
+							No projects found
+						</h3>
+						<p className="text-gray-500">Try a different search term</p>
+					</div>
+				) : (
+					// Empty state
+					<div className="text-center py-20">
+						<div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+							<Sparkles className="w-12 h-12 text-blue-600" />
+						</div>
+						<h2 className="text-2xl font-bold text-gray-900 mb-2">
+							Start Creating Something Amazing
+						</h2>
+						<p className="text-gray-500 mb-8 max-w-md mx-auto">
+							Create your first design project. Choose from templates or start from
+							scratch.
+						</p>
+						<Button
+							onClick={() => setShowNewProject(true)}
+							size="lg"
+							className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+							<Plus className="w-5 h-5 mr-2" />
+							Create Your First Project
+						</Button>
+					</div>
+				)}
+			</main>
+
+			{/* New Project Dialog */}
+			<NewProjectDialog open={showNewProject} onOpenChange={setShowNewProject} />
+		</div>
+	);
 }
