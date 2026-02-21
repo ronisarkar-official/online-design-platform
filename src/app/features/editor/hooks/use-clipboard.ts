@@ -1,5 +1,5 @@
 import * as fabric from 'fabric';
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 interface UseClipboardProps {
   canvas: fabric.Canvas | null;
@@ -9,6 +9,7 @@ export const useClipboard = ({
   canvas
 }: UseClipboardProps) => {
   const clipboard = useRef<fabric.Object | null>(null);
+  const [hasCopied, setHasCopied] = useState(false);
 
   const copy = useCallback(async () => {
     const activeObject = canvas?.getActiveObject();
@@ -16,6 +17,7 @@ export const useClipboard = ({
       try {
         const cloned = await activeObject.clone();
         clipboard.current = cloned;
+        setHasCopied(true);
       } catch (error) {
         console.error('Failed to clone object:', error);
       }
@@ -54,5 +56,5 @@ export const useClipboard = ({
     }
   }, [canvas]);
 
-  return { copy, paste };
+  return { copy, paste, hasCopied };
 };

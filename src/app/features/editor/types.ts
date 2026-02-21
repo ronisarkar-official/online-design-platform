@@ -247,6 +247,7 @@ export type BuildEditorProps = {
 	autoZoom: () => void;
 	copy: () => void;
 	paste: () => void;
+	hasCopied: boolean;
 	canvas: fabric.Canvas;
 	fillColor: string;
 	strokeColor: string;
@@ -281,6 +282,7 @@ export interface Editor {
 	disableDrawingMode: () => void;
 	onCopy: () => void;
 	onPaste: () => void;
+	hasCopied: boolean;
 	changeImageFilter: (value: string) => void;
 	addImage: (value: string) => void;
 	delete: () => void;
@@ -332,7 +334,7 @@ export interface Editor {
 	changeCornerRadius: (value: number) => void;
 	getActiveCornerRadius: () => number;
 	cropImage: (options: { left: number; top: number; width: number; height: number }) => void;
-	removeBackground: () => Promise<void>;
+	removeBackground: (apiKey: string) => Promise<void>;
 	addStar: () => void;
 	addArrow: () => void;
 	addHeart: () => void;

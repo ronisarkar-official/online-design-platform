@@ -25,6 +25,8 @@ import { StickersSidebar } from './stickers-sidebar';
 import { GradientSidebar } from './gradient-sidebar';
 import { LayersSidebar } from './layers-sidebar';
 import { UploadSidebar } from './upload-sidebar';
+import { SettingsSidebar } from './settings-sidebar';
+import { AiSidebar } from './ai-sidebar';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { projectStorage } from '@/app/features/projects/storage';
 
@@ -211,7 +213,7 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 			activeTool={activeTool}
 			onChangeActiveTool={onChangeActiveTool}
 		/>
-			<div className="absolute h-[calc(100vh-68px)] w-full top-[68px]  flex">
+			<div className="absolute h-[calc(100vh-68px)] w-full top-[68px] flex overflow-hidden">
 				<Sidebar
 					activeTool={activeTool}
 					onChangeActiveTool={onChangeActiveTool}
@@ -286,20 +288,24 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 					activeTool={activeTool}
 					onChangeActiveTool={onChangeActiveTool}
 				/>
-				
-				<LayersSidebar
-					editor={editor}
-					activeTool={activeTool}
-					onChangeActiveTool={onChangeActiveTool}
-				/>
+
 				<UploadSidebar
 					editor={editor}
 					activeTool={activeTool}
 					onChangeActiveTool={onChangeActiveTool}
 				/>
+				<SettingsSidebar
+					activeTool={activeTool}
+					onChangeActiveTool={onChangeActiveTool}
+				/>
+				<AiSidebar
+					editor={editor}
+					activeTool={activeTool}
+					onChangeActiveTool={onChangeActiveTool}
+				/>
 				
-				
-				<main className=" flex-1  relative flex flex-col ">
+				{/* ── Canvas area ──────────────────────────────────────────── */}
+				<main className="flex flex-1 flex-col min-h-0 overflow-hidden relative">
 					<Toolbar
 						editor={editor}
 						activeTool={activeTool}
@@ -309,7 +315,7 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 					<div
 						ref={containerRef}
 						className="flex-1 overflow-hidden bg-muted"
-						style={{ minHeight: '400px' }}
+						style={{ minHeight: 0 }}
 						onDrop={handleDrop}
 						onDragOver={handleDragOver}
 					>
@@ -320,6 +326,12 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 							/>
 						</ContextMenuCanvas>
 					</div>
+					{/* Layers panel — absolute overlay on the right, like image-sidebar */}
+					<LayersSidebar
+						editor={editor}
+						activeTool={activeTool}
+						onChangeActiveTool={onChangeActiveTool}
+					/>
 					<Footer />
 					<KeyboardShortcutsDialog />
 				</main>

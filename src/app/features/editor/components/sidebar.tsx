@@ -24,7 +24,7 @@ interface SidebarProps {
 
 export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
 	return (
-		<aside className="bg-background flex flex-col w-[60px] h-full border-r overflow-y-auto ">
+		<aside className="bg-background flex flex-col w-[60px] h-full border-r overflow-y-auto shrink-0">
 			<ul className="flex flex-col gap-y-2 mt-4">
 				<SidebarItem
 					icon={LayoutTemplate}
@@ -51,7 +51,12 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
 					onClick={() => onChangeActiveTool('shapes')}
 				/>
 				
-				
+				<SidebarItem
+					icon={Upload}
+					label="Upload"
+					isActive={activeTool === 'upload'}
+					onClick={() => onChangeActiveTool('upload')}
+				/>
 				
 				<SidebarItem
 					icon={Layers}
@@ -66,12 +71,7 @@ export const Sidebar = ({ activeTool, onChangeActiveTool }: SidebarProps) => {
 					isActive={activeTool === 'ai'}
 					onClick={() => onChangeActiveTool('ai')}
 				/>
-				<SidebarItem
-					icon={Upload}
-					label="Upload"
-					isActive={activeTool === 'upload'}
-					onClick={() => onChangeActiveTool('upload')}
-				/>
+				
 				<SidebarItem
 					icon={Settings}
 					label="Settings"

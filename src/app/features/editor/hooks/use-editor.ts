@@ -42,6 +42,7 @@ import { useAutoResize } from './use-auto-resize';
 import { useCanvasEvents } from './use-canvas-events';
 import { useWindowEvents } from './use-window-events';
 import { useLoadState } from './use-load-state';
+import { useAlignmentGuides } from './use-alignment-guides';
 
 const buildEditor = ({
 	save,
@@ -52,6 +53,7 @@ const buildEditor = ({
 	autoZoom,
 	copy,
 	paste,
+	hasCopied,
 	canvas,
 	fillColor,
 	fontFamily,
@@ -109,6 +111,7 @@ const buildEditor = ({
 		onRedo: () => redo(),
 		onCopy: () => copy(),
 		onPaste: () => paste(),
+		hasCopied,
 		changeImageFilter: (value: string) => {
 			const objects = canvas.getActiveObjects();
 			objects.forEach((object) => {
@@ -708,93 +711,96 @@ const buildEditor = ({
 			});
 			canvas.renderAll();
 		},
-		removeBackground: async () => {
+		removeBackground: async (apiKey: string) => {
 			const activeObject = canvas.getActiveObject();
 			if (!activeObject || activeObject.type !== 'image') {
-				return;
+				throw new Error('Please select an image on the canvas first.');
+			}
+
+			if (!apiKey) {
+				throw new Error('No Remove.bg API key provided. Add it in Settings.');
 			}
 
 			const imageObject = activeObject as fabric.Image;
-			
-			// Get base64 data url from the image
-			// We need to clone it to get the original image data without transformations if possible, 
-            // or just use toDataURL on the object
-            // Using toDataURL on the object captures current crop/filters which might be desired
-            // But usually we want to remove bg from the source image. 
-            // Let's try to get the original source if possible, but fabric images can be complex.
-            // Simple approach: get data URL of the image element
-            
-            // If it's already a data URL or local blob, we might need to convert it
-            // Ideally we use a helper to get base64 from the image element
-            
-            const element = imageObject.getElement() as HTMLImageElement;
-            if (!element) return;
 
-            // Create a canvas to extract base64
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = element.naturalWidth;
-            tempCanvas.height = element.naturalHeight;
-            const ctx = tempCanvas.getContext('2d');
-            if (!ctx) return;
-            
-            ctx.drawImage(element, 0, 0);
-            const base64 = tempCanvas.toDataURL('image/png');
+			// Extract the raw image pixels into a Blob via an offscreen canvas
+			const element = imageObject.getElement() as HTMLImageElement;
+			if (!element) throw new Error('Could not read image data.');
 
-			try {
-				const response = await fetch('/api/remove-bg', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({
-						image: base64,
-					}),
-				});
+			const tempCanvas = document.createElement('canvas');
+			tempCanvas.width = element.naturalWidth || element.width;
+			tempCanvas.height = element.naturalHeight || element.height;
+			const ctx = tempCanvas.getContext('2d');
+			if (!ctx) throw new Error('Canvas 2D context unavailable.');
+			ctx.drawImage(element, 0, 0);
 
-				if (!response.ok) {
-                    const errorText = await response.text();
-					throw new Error(`Failed to remove background: ${response.statusText} - ${errorText}`);
+			// Convert to blob
+			const blob = await new Promise<Blob>((resolve, reject) => {
+				tempCanvas.toBlob((b) => {
+					if (b) resolve(b);
+					else reject(new Error('Failed to convert image to blob.'));
+				}, 'image/png');
+			});
+
+			// Send directly to remove.bg — no server proxy needed
+			const formData = new FormData();
+			formData.append('image_file', blob, 'image.png');
+			formData.append('size', 'auto');
+
+			const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+				method: 'POST',
+				headers: {
+					'X-Api-Key': apiKey,
+				},
+				body: formData,
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				if (response.status === 402) {
+					throw new Error('Remove.bg API: credits exhausted. Top up your account.');
 				}
-
-				const data = await response.json();
-                const newBase64 = `data:image/png;base64,${data.result_b64}`;
-
-                // Create new image from result
-                fabric.Image.fromURL(newBase64, {
-                    crossOrigin: 'anonymous'
-                }).then((newImage) => {
-                    // Calculate scale factors to maintain the same visual size
-                    // visual width = width * scaleX
-                    const activeObjectWidth = imageObject.width * imageObject.scaleX;
-                    const activeObjectHeight = imageObject.height * imageObject.scaleY;
-                    
-                    const scaleX = activeObjectWidth / newImage.width;
-                    const scaleY = activeObjectHeight / newImage.height;
-
-                    // Copy properties from old image
-                    newImage.set({
-                        left: imageObject.left,
-                        top: imageObject.top,
-                        // Do not copy width/height as the new image might have different natural dimensions (e.g. from API preview)
-                        scaleX: scaleX,
-                        scaleY: scaleY,
-                        angle: imageObject.angle,
-                        flipX: imageObject.flipX,
-                        flipY: imageObject.flipY,
-                    });
-
-                    // Replace old image
-                    canvas.remove(imageObject);
-                    canvas.add(newImage);
-                    canvas.setActiveObject(newImage);
-                    canvas.renderAll();
-                    save();
-                });
-
-			} catch (error) {
-				console.error('Background removal failed:', error);
-				throw error;
+				if (response.status === 403) {
+					throw new Error('Remove.bg API: invalid API key. Check your key in Settings.');
+				}
+				throw new Error(`Remove.bg error (${response.status}): ${errorText}`);
 			}
+
+			// Response is a PNG blob — convert to base64 data URL so it's
+			// permanently embedded in the canvas (object URLs expire and cause the
+			// image to disappear on subsequent redraws when revoked).
+			const resultBlob = await response.blob();
+			const dataUrl = await new Promise<string>((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result as string);
+				reader.onerror = () => reject(new Error('Failed to read result image.'));
+				reader.readAsDataURL(resultBlob);
+			});
+
+			const newImage = await fabric.Image.fromURL(dataUrl, { crossOrigin: 'anonymous' });
+
+			// Maintain the same visual size & position as the original image
+			const visualWidth = imageObject.width * imageObject.scaleX;
+			const visualHeight = imageObject.height * imageObject.scaleY;
+			const scaleX = visualWidth / (newImage.width || 1);
+			const scaleY = visualHeight / (newImage.height || 1);
+
+			newImage.set({
+				left: imageObject.left,
+				top: imageObject.top,
+				scaleX,
+				scaleY,
+				angle: imageObject.angle,
+				flipX: imageObject.flipX,
+				flipY: imageObject.flipY,
+			});
+
+			canvas.remove(imageObject);
+			canvas.add(newImage);
+			canvas.setActiveObject(newImage);
+			canvas.renderAll();
+
+			save();
 		},
 		addStar: () => {
 			const points = createStarPoints(5, 200, 100);
@@ -961,7 +967,7 @@ export const useEditor = ({
 		saveCallback,
 	});
 
-	const { copy, paste } = useClipboard({ canvas });
+	const { copy, paste, hasCopied } = useClipboard({ canvas });
 
 	const { autoZoom } = useAutoResize({
 		canvas,
@@ -990,6 +996,8 @@ export const useEditor = ({
 		setHistoryIndex,
 	});
 
+	useAlignmentGuides({ canvas });
+
 	const editor = useMemo(() => {
 		if (canvas) {
 			return buildEditor({
@@ -1001,6 +1009,7 @@ export const useEditor = ({
 				autoZoom,
 				copy,
 				paste,
+				hasCopied,
 				canvas,
 				fillColor,
 				strokeWidth,
@@ -1026,6 +1035,7 @@ export const useEditor = ({
 		autoZoom,
 		copy,
 		paste,
+		hasCopied,
 		canvas,
 		fillColor,
 		strokeWidth,
