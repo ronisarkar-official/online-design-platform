@@ -7,6 +7,7 @@ import { Navbar } from './navbar';
 import { Sidebar } from './sidebar';
 import { Toolbar } from './toolbar';
 import { ShapeSidebar } from './shape-sidebar';
+import { DrawSidebar } from './draw-sidebar';
 import { FillColorSidebar } from './fill-color-sidebar';
 import { StrokeColorSidebar } from './stroke-color-sidebar';
 import { Footer } from './footer';
@@ -22,7 +23,7 @@ import { CornerRadiusSidebar } from './corner-radius-sidebar';
 import { CropSidebar } from './crop-sidebar';
 import { RemoveBgSidebar } from './remove-bg-sidebar';
 import { StickersSidebar } from './stickers-sidebar';
-import { GradientSidebar } from './gradient-sidebar';
+
 import { LayersSidebar } from './layers-sidebar';
 import { UploadSidebar } from './upload-sidebar';
 import { SettingsSidebar } from './settings-sidebar';
@@ -55,27 +56,32 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 				editor.canvas.loadFromJSON(project.canvasData).then(() => {
 					editor.canvas.renderAll();
 					editor.autoZoom();
+					setIsSaved(true); // loaded state is "saved"
 				});
 			}
 		}
 	}, [projectId, editor]);
 
-	// Auto-save functionality
+	const [isSaved, setIsSaved] = useState(true);
+
+	// Auto-save functionality — depend on canvas (stable) not editor (recreated often)
+	const canvas = editor?.canvas;
+
 	useEffect(() => {
-		if (!projectId || !editor) return;
+		if (!projectId || !canvas) return;
 
 		const saveProject = async () => {
-			const json = editor.canvas.toJSON();
-			
+			const json = canvas.toJSON();
+
 			// Generate thumbnail using Fabric's native toDataURL
-			const width = editor.canvas.width || 800;
+			const width = canvas.width || 800;
 			const multiplier = 400 / width;
-			const thumbnail = editor.canvas.toDataURL({
+			const thumbnail = canvas.toDataURL({
 				format: 'jpeg',
 				quality: 0.7,
 				multiplier: multiplier,
 			});
-			
+
 			const project = projectStorage.getById(projectId);
 			if (project) {
 				projectStorage.save({
@@ -85,39 +91,45 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 					updatedAt: Date.now(),
 				});
 			}
+			setIsSaved(true);
 		};
 
 		let timeoutId: NodeJS.Timeout;
 		const debouncedSave = () => {
+			setIsSaved(false);
 			clearTimeout(timeoutId);
 			timeoutId = setTimeout(saveProject, 1000);
 		};
 
 		// Listen to canvas events
-		editor.canvas.on('object:modified', debouncedSave);
-		editor.canvas.on('object:added', debouncedSave);
-		editor.canvas.on('object:removed', debouncedSave);
-		editor.canvas.on('path:created', debouncedSave); // For drawing mode
+		canvas.on('object:modified', debouncedSave);
+		canvas.on('object:added', debouncedSave);
+		canvas.on('object:removed', debouncedSave);
+		canvas.on('path:created', debouncedSave); // For drawing mode
 
 		return () => {
 			clearTimeout(timeoutId);
-			editor.canvas.off('object:modified', debouncedSave);
-			editor.canvas.off('object:added', debouncedSave);
-			editor.canvas.off('object:removed', debouncedSave);
-			editor.canvas.off('path:created', debouncedSave);
+			canvas.off('object:modified', debouncedSave);
+			canvas.off('object:added', debouncedSave);
+			canvas.off('object:removed', debouncedSave);
+			canvas.off('path:created', debouncedSave);
 		};
-	}, [projectId, editor]);
+	}, [projectId, canvas]);
 
 	const onChangeActiveTool = useCallback(
 		(tool: ActiveTool) => {
-			if (tool === activeTool) return setActiveTool('select');
 			if (tool === 'draw') {
+				editor?.enableDrawingMode();
 			}
 			if (activeTool === 'draw') {
+				editor?.disableDrawingMode();
+			}
+			if (tool === activeTool) {
+				return setActiveTool('select');
 			}
 			setActiveTool(tool);
 		},
-		[activeTool],
+		[activeTool, editor],
 	);
 
 	// Automatically switch to select tool when no objects are selected and fill/stroke tool is active
@@ -212,6 +224,7 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 			editor={editor}
 			activeTool={activeTool}
 			onChangeActiveTool={onChangeActiveTool}
+			isSaved={isSaved}
 		/>
 			<div className="absolute h-[calc(100vh-68px)] w-full top-[68px] flex overflow-hidden">
 				<Sidebar
@@ -224,6 +237,11 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 					onChangeActiveTool={onChangeActiveTool}
 				/>
 				<ShapeSidebar
+					editor={editor}
+					activeTool={activeTool}
+					onChangeActiveTool={onChangeActiveTool}
+				/>
+				<DrawSidebar
 					editor={editor}
 					activeTool={activeTool}
 					onChangeActiveTool={onChangeActiveTool}

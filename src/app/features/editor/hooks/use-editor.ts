@@ -67,20 +67,8 @@ const buildEditor = ({
 	strokeDashArray,
 	setStrokeDashArray,
 }: BuildEditorProps): Editor => {
-	const generateSaveOptions = () => {
-		// eslint-disable-line @typescript-eslint/no-unused-vars
-		const { width, height, left, top } = getWorkspace() as fabric.Rect;
+	
 
-		return {
-			name: 'Image',
-			format: 'png',
-			quality: 1,
-			width,
-			height,
-			left,
-			top,
-		};
-	};
 
 	const getWorkspace = () => {
 		return canvas
@@ -617,9 +605,69 @@ const buildEditor = ({
 			canvas.discardActiveObject();
 			canvas.renderAll();
 			canvas.isDrawingMode = true;
+			// Default initialization
 			canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
 			canvas.freeDrawingBrush.width = strokeWidth;
 			canvas.freeDrawingBrush.color = strokeColor;
+		},
+		changeDrawingBrush: (type: string, currentStrokeWidth: number, currentStrokeColor: string) => {
+			if (!canvas) return;
+
+			// Base64 SVGs for custom Canvas Cursors copied from DrawSidebar
+			const CURSORS = {
+				pen: `url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 20L8 20L20 8L16 4L4 16L4 20Z" fill="black" stroke="white" stroke-width="1.5"/><path d="M16 4L20 8" stroke="white" stroke-width="1.5"/></svg>') 0 24, crosshair`,
+				marker: `url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="16" width="6" height="6" fill="black" stroke="white"/><rect x="10" y="4" width="10" height="12" fill="none" stroke="black" stroke-width="2"/></svg>') 4 20, crosshair`,
+				crosshair: 'crosshair',
+			};
+
+			switch (type) {
+				case 'pen':
+					canvas.freeDrawingCursor = CURSORS.pen;
+					canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+					canvas.freeDrawingBrush.width = currentStrokeWidth;
+					canvas.freeDrawingBrush.color = currentStrokeColor;
+					canvas.freeDrawingBrush.strokeLineCap = 'round';
+					canvas.freeDrawingBrush.strokeLineJoin = 'round';
+					break;
+				case 'marker':
+					canvas.freeDrawingCursor = CURSORS.marker;
+					canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+					canvas.freeDrawingBrush.width = currentStrokeWidth * 2;
+					canvas.freeDrawingBrush.color = currentStrokeColor;
+					canvas.freeDrawingBrush.strokeLineCap = 'square';
+					canvas.freeDrawingBrush.strokeLineJoin = 'miter';
+					break;
+				case 'highlighter':
+					canvas.freeDrawingCursor = CURSORS.marker;
+					canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+					
+					// Semi-transparent color logic
+					const colorStr = typeof currentStrokeColor === 'string' ? currentStrokeColor : '#F4DE4C';
+					let hlColor = colorStr;
+					if (colorStr.startsWith('#')) {
+						if (colorStr.length === 7) hlColor = colorStr + '80';
+					} else if (colorStr.startsWith('rgb(')) {
+						hlColor = colorStr.replace('rgb(', 'rgba(').replace(')', ', 0.5)');
+					}
+
+					canvas.freeDrawingBrush.width = currentStrokeWidth * 1.5;
+					canvas.freeDrawingBrush.color = hlColor;
+					canvas.freeDrawingBrush.strokeLineCap = 'square';
+					canvas.freeDrawingBrush.strokeLineJoin = 'miter';
+					break;
+				case 'spray':
+					canvas.freeDrawingCursor = CURSORS.crosshair;
+					canvas.freeDrawingBrush = new fabric.SprayBrush(canvas);
+					canvas.freeDrawingBrush.width = currentStrokeWidth * 2;
+					canvas.freeDrawingBrush.color = currentStrokeColor;
+					break;
+				case 'circle':
+					canvas.freeDrawingCursor = CURSORS.crosshair;
+					canvas.freeDrawingBrush = new fabric.CircleBrush(canvas);
+					canvas.freeDrawingBrush.width = currentStrokeWidth;
+					canvas.freeDrawingBrush.color = currentStrokeColor;
+					break;
+			}
 		},
 		disableDrawingMode: () => {
 			canvas.isDrawingMode = false;
@@ -905,27 +953,6 @@ const buildEditor = ({
 			canvas.renderAll();
 			save();
 		},
-		changeDrawingBrush: (style: string, size: number) => {
-			if (canvas.freeDrawingBrush) {
-				canvas.freeDrawingBrush.width = size;
-				canvas.freeDrawingBrush.color = strokeColor;
-
-				// Different brush styles
-				if (style === 'pencil') {
-					canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
-					canvas.freeDrawingBrush.width = size;
-					canvas.freeDrawingBrush.color = strokeColor;
-				} else if (style === 'circle') {
-					canvas.freeDrawingBrush = new fabric.CircleBrush(canvas);
-					canvas.freeDrawingBrush.width = size;
-					canvas.freeDrawingBrush.color = strokeColor;
-				} else if (style === 'spray') {
-					canvas.freeDrawingBrush = new fabric.SprayBrush(canvas);
-					canvas.freeDrawingBrush.width = size;
-					canvas.freeDrawingBrush.color = strokeColor;
-				}
-			}
-		},
 		save,
 	};
 };
@@ -977,6 +1004,7 @@ export const useEditor = ({
 	useCanvasEvents({
 		canvas,
 		setSelectedObjects,
+		save,
 	});
 
 	useHotkeys({
@@ -1083,7 +1111,20 @@ export const useEditor = ({
 			initialCanvas.add(initialWorkspace);
 			initialCanvas.centerObject(initialWorkspace);
 			// Removed clipPath assignment - it prevents objects from being selectable
-		initialCanvas.sendObjectToBack(initialWorkspace); // Send workspace to back so it doesn't block clicks
+			initialCanvas.sendObjectToBack(initialWorkspace); // Send workspace to back so it doesn't block clicks
+
+			// Ensure drawn paths get an ID to prevent Layers sidebar crashing
+			initialCanvas.on('path:created', (opt: { path: fabric.Object }) => {
+				const path = opt.path as fabric.Path;
+				if (path) {
+					// Only assign selectable if it's not the true eraser (destination-out is non-selectable)
+					if (path.globalCompositeOperation !== 'destination-out') {
+						path.selectable = true;
+					}
+					// Always assign a UUID so the Layers sidebar drag-and-drop system can track it
+					(path as unknown as Record<string, unknown>).id = crypto.randomUUID();
+				}
+			});
 
 			setCanvas(initialCanvas);
 			setContainer(initialContainer);

@@ -27,11 +27,11 @@ interface NavbarProps {
 	editor: Editor | undefined;
 	activeTool: ActiveTool;
 	onChangeActiveTool: (tool: ActiveTool) => void;
+	isSaved?: boolean;
 }
 
-export const Navbar = ({ editor, activeTool, onChangeActiveTool }: NavbarProps) => {
+export const Navbar = ({ editor, activeTool, onChangeActiveTool, isSaved = true }: NavbarProps) => {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-	const [isSaved, setIsSaved] = useState(true);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const handleFileOpen = () => {
@@ -136,9 +136,9 @@ export const Navbar = ({ editor, activeTool, onChangeActiveTool }: NavbarProps) 
 						{isSaved ? (
 							<BsCloudCheck className="size-4 text-green-600 dark:text-green-500" />
 						) : (
-							<BsCloudSlash className="size-4 text-amber-600 dark:text-amber-500" />
+							<BsCloudSlash className="size-4 text-amber-600 dark:text-amber-500 animate-[pulse_1.2s_ease-in-out_infinite]" />
 						)}
-						<span className="text-sm font-medium">
+						<span className={cn('text-sm font-medium', !isSaved && 'animate-pulse')}>
 							{isSaved ? 'Saved' : 'Saving...'}
 						</span>
 					</div>
@@ -177,7 +177,7 @@ export const Navbar = ({ editor, activeTool, onChangeActiveTool }: NavbarProps) 
 						{isSaved ? (
 							<BsCloudCheck className="size-4 text-green-600 dark:text-green-500" />
 						) : (
-							<BsCloudSlash className="size-4 text-amber-600" />
+							<BsCloudSlash className="size-4 text-amber-600 dark:text-amber-500 animate-[pulse_1.2s_ease-in-out_infinite]" />
 						)}
 					</div>
 
@@ -222,7 +222,7 @@ export const Navbar = ({ editor, activeTool, onChangeActiveTool }: NavbarProps) 
 								</div>
 							) : (
 								<div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
-									<BsCloudSlash className="size-5 text-amber-600 dark:text-amber-500" />
+									<BsCloudSlash className="size-5 text-amber-600 dark:text-amber-500 animate-[pulse_1.2s_ease-in-out_infinite]" />
 								</div>
 							)}
 							<div>

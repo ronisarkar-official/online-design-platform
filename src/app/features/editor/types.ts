@@ -1,5 +1,4 @@
 import * as fabric from 'fabric';
-import { ITextboxOptions } from 'fabric/fabric-impl';
 import * as material from 'material-colors';
 
 export const JSON_KEYS = [
@@ -11,6 +10,8 @@ export const JSON_KEYS = [
 	'editable',
 	'extensionType',
 	'extension',
+	'id',
+	'globalCompositeOperation',
 ];
 
 export const filters = [
@@ -300,7 +301,7 @@ export interface Editor {
 	getActiveFontWeight: () => number;
 	getActiveFontFamily: () => string;
 	changeFontFamily: (value: string) => void;
-	addText: (value: string, options?: ITextboxOptions) => void;
+	addText: (value: string, options?: fabric.TextboxProps) => void;
 	getActiveOpacity: () => number;
 	changeOpacity: (value: number) => void;
 	bringForward: () => void;
@@ -343,6 +344,6 @@ export interface Editor {
 	addSticker: (url: string) => void;
 	applyTextShadow: (options: { blur: number; offsetX: number; offsetY: number; color: string }) => void;
 	applyGradient: (colors: string[], angle: number, type: 'linear' | 'radial') => void;
-	changeDrawingBrush: (style: string, size: number) => void;
+	changeDrawingBrush: (type: string, strokeWidth: number, strokeColor: string) => void;
 	save: () => void;
 }

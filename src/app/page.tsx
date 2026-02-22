@@ -1,34 +1,111 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Search, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyMedia,
+	EmptyTitle,
+} from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { ProjectCard } from './features/projects/components/project-card';
 import { NewProjectDialog } from './features/projects/components/new-project-dialog';
 import { projectStorage } from './features/projects/storage';
 import { Project } from './features/projects/types';
 
+function isProjectShape(data: unknown): data is Project {
+	return (
+		typeof data === 'object' &&
+		data !== null &&
+		'id' in data &&
+		'name' in data &&
+		'width' in data &&
+		'height' in data
+	);
+}
+
+function isCanvasJson(data: unknown): data is { objects?: unknown[]; width?: number; height?: number } {
+	return typeof data === 'object' && data !== null && 'objects' in data;
+}
+
 export default function Home() {
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [showNewProject, setShowNewProject] = useState(false);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	// Load projects on mount
 	useEffect(() => {
-		loadProjects();
-	}, []);
-
-	const loadProjects = () => {
 		const allProjects = projectStorage.getAll();
 		// Sort by updated date (newest first)
 		allProjects.sort((a, b) => b.updatedAt - a.updatedAt);
 		setProjects(allProjects);
-	};
+	}, []);
+
+	function loadProjects() {
+		const allProjects = projectStorage.getAll();
+		// Sort by updated date (newest first)
+		allProjects.sort((a, b) => b.updatedAt - a.updatedAt);
+		setProjects(allProjects);
+	}
 
 	const handleDelete = (id: string) => {
 		projectStorage.delete(id);
 		loadProjects();
+	};
+
+	const handleImportClick = () => {
+		fileInputRef.current?.click();
+	};
+
+	const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			try {
+				const json = event.target?.result as string;
+				if (!json) return;
+				const data = JSON.parse(json) as unknown;
+
+				const now = Date.now();
+				if (isProjectShape(data)) {
+					const imported: Project = {
+						...data,
+						id: crypto.randomUUID(),
+						name: `Imported: ${data.name}`,
+						createdAt: now,
+						updatedAt: now,
+					};
+					projectStorage.save(imported);
+				} else if (isCanvasJson(data)) {
+					const width = data.width ?? 800;
+					const height = data.height ?? 600;
+					const imported: Project = {
+						id: crypto.randomUUID(),
+						name: 'Imported Project',
+						width,
+						height,
+						canvasData: JSON.stringify(data),
+						createdAt: now,
+						updatedAt: now,
+					};
+					projectStorage.save(imported);
+				} else {
+					console.warn('Unknown JSON format, skipping import');
+					return;
+				}
+				loadProjects();
+			} catch (err) {
+				console.error('Failed to import project:', err);
+			}
+		};
+		reader.readAsText(file);
+		e.target.value = '';
 	};
 
 	// Filter projects based on search query
@@ -38,28 +115,48 @@ export default function Home() {
 
 	return (
 		<div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
-			{/* Header */}
-			<header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-					<div className="flex items-center justify-between">
-						<div className="flex items-center space-x-3">
-							<div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-								<Sparkles className="w-6 h-6 text-white" />
-							</div>
-							<div>
-								<h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-									Image Editor
-								</h1>
-								<p className="text-sm text-gray-500">Create stunning designs</p>
-							</div>
-						</div>
+			{/* Hidden file input for importing project JSON */}
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept=".json,application/json"
+				onChange={handleImportFileChange}
+				className="hidden"
+			/>
 
+			{/* Header */}
+			<header className="border-b  bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 sticky top-0 z-50 w-full">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
+							<Sparkles className="w-4 h-4" />
+						</div>
+						<div className="flex flex-col">
+							<h1 className="text-xl font-semibold tracking-tight">
+								Image Editor
+							</h1>
+							<p className="text-xs text-muted-foreground font-medium hidden sm:block">
+								Create stunning designs
+							</p>
+						</div>
+					</div>
+
+					<div className="flex items-center gap-2">
+						<Button
+							onClick={handleImportClick}
+							className="gap-2 h-9 px-4"
+							variant="outline">
+							<Upload className="w-4 h-4" />
+							<span className="hidden sm:inline">Import Project</span>
+							<span className="sm:hidden">Import</span>
+						</Button>
 						<Button
 							onClick={() => setShowNewProject(true)}
-							size="lg"
-							className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-							<Plus className="w-5 h-5 mr-2" />
-							New Project
+							className="gap-2 h-9 px-4"
+							variant="default">
+							<Plus className="w-4 h-4" />
+							<span className="hidden sm:inline">New Project</span>
+							<span className="sm:hidden">New</span>
 						</Button>
 					</div>
 				</div>
@@ -101,34 +198,37 @@ export default function Home() {
 					</>
 				) : projects.length > 0 ? (
 					// No search results
-					<div className="text-center py-12">
-						<Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-						<h3 className="text-lg font-semibold text-gray-900 mb-2">
-							No projects found
-						</h3>
-						<p className="text-gray-500">Try a different search term</p>
-					</div>
+					<Empty>
+						<EmptyMedia>
+							<Search />
+						</EmptyMedia>
+						<EmptyTitle>No projects found</EmptyTitle>
+						<EmptyDescription>Try a different search term</EmptyDescription>
+					</Empty>
 				) : (
 					// Empty state
-					<div className="text-center py-20">
-						<div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-							<Sparkles className="w-12 h-12 text-blue-600" />
-						</div>
-						<h2 className="text-2xl font-bold text-gray-900 mb-2">
-							Start Creating Something Amazing
-						</h2>
-						<p className="text-gray-500 mb-8 max-w-md mx-auto">
+					<Empty>
+						<EmptyMedia>
+							<Sparkles />
+						</EmptyMedia>
+						<EmptyTitle>Start Creating Something Amazing</EmptyTitle>
+						<EmptyDescription>
 							Create your first design project. Choose from templates or start from
 							scratch.
-						</p>
-						<Button
-							onClick={() => setShowNewProject(true)}
-							size="lg"
-							className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-							<Plus className="w-5 h-5 mr-2" />
-							Create Your First Project
-						</Button>
-					</div>
+						</EmptyDescription>
+						<EmptyContent>
+							<div className="flex flex-wrap gap-3 justify-center">
+								<Button onClick={() => setShowNewProject(true)}>
+									<Plus className="w-4 h-4 mr-2" />
+									Create Your First Project
+								</Button>
+								<Button onClick={handleImportClick} variant="outline">
+									<Upload className="w-4 h-4 mr-2" />
+									Import Project
+								</Button>
+							</div>
+						</EmptyContent>
+					</Empty>
 				)}
 			</main>
 
