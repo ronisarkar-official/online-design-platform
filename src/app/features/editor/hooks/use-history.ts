@@ -38,12 +38,11 @@ export const useHistory = ({ canvas, saveCallback }: UseHistoryProps) => {
 				setHistoryIndex(canvasHistoryRef.current.length - 1);
 			}
 
-			const workspace = canvas
-				.getObjects()
-				.find(
-					(object) =>
-						(object as fabric.FabricObject & { name?: string }).name === 'clip',
-				);
+			const objects = canvas.getObjects();
+			const workspace = objects.find(
+				(object) =>
+					(object as fabric.FabricObject & { name?: string }).name === 'clip',
+			) || (objects[0] && objects[0].type === 'Rect' ? objects[0] : undefined);
 			const height = workspace?.height || 0;
 			const width = workspace?.width || 0;
 

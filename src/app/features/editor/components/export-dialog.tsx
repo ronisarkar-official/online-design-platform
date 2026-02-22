@@ -170,18 +170,17 @@ export const ExportDialog = ({ editor, children }: ExportDialogProps) => {
 						ctx.imageSmoothingQuality = 'high';
 						ctx.drawImage(offscreenCanvas, 0, 0, customWidth, customHeight);
 
-						await new Promise<void>((resolve) => {
-							resizeCanvas.toBlob(
-								(blob) => {
-									if (blob) {
-										downloadBlob(blob, `${filename}.${format}`);
-									}
-									resolve();
-								},
-								format === 'jpg' ? 'image/jpeg' : `image/${format}`,
-								quality / 100,
-							);
-						});
+						const dataUrl = resizeCanvas.toDataURL(
+							format === 'jpg' ? 'image/jpeg' : `image/${format}`,
+							quality / 100
+						);
+						
+						const link = document.createElement('a');
+						link.href = dataUrl;
+						link.download = `${filename}.${format}`;
+						document.body.appendChild(link);
+						link.click();
+						document.body.removeChild(link);
 					}
 				}
 			} finally {

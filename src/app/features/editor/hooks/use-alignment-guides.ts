@@ -61,23 +61,23 @@ export const useAlignmentGuides = ({
 
 	const getWorkspace = useCallback((): fabric.Object | undefined => {
 		if (!canvas) return undefined;
-		return canvas
-			.getObjects()
-			.find((o) => (o as fabric.FabricObject & { name?: string }).name === 'clip');
+		const objects = canvas.getObjects();
+		return objects.find((o) => (o as fabric.FabricObject & { name?: string }).name === 'clip') || (objects[0] && objects[0].type === 'Rect' ? objects[0] : undefined);
 	}, [canvas]);
 
 	const getTargets = useCallback(
 		(exclude: fabric.Object): fabric.Object[] => {
 			if (!canvas) return [];
+			const workspace = getWorkspace();
 			return canvas.getObjects().filter((o) => {
 				if (o === exclude) return false;
-				if ((o as fabric.FabricObject & { name?: string }).name === 'clip') return false;
+				if (o === workspace) return false;
 				// skip non-interactive objects (guide lines etc.)
 				if (!o.selectable && !o.evented) return false;
 				return true;
 			});
 		},
-		[canvas],
+		[canvas, getWorkspace],
 	);
 
 	/**

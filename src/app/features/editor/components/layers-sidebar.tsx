@@ -243,7 +243,7 @@ export const LayersSidebar = ({
 		if (!editor?.canvas) return;
 		const objs = editor.canvas.getObjects().filter((o) => {
 			const obj = o as unknown as Record<string, unknown>;
-			return obj.name !== 'clip' && obj.name !== 'background';
+			return obj.name !== 'clip' && obj.name !== 'background' && o !== editor.getWorkspace();
 		});
 		objs.forEach((obj) => {
 			const o = obj as unknown as Record<string, unknown>;

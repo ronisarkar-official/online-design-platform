@@ -71,12 +71,11 @@ const buildEditor = ({
 
 
 	const getWorkspace = () => {
-		return canvas
-			.getObjects()
-			.find(
-				(object) =>
-					(object as fabric.FabricObject & { name?: string }).name === 'clip',
-			);
+		const objects = canvas.getObjects();
+		return objects.find(
+			(object) =>
+				(object as fabric.FabricObject & { name?: string }).name === 'clip',
+		) || (objects[0] && objects[0].type === 'Rect' ? objects[0] : undefined);
 	};
 
 	const center = (object: fabric.Object) => {
@@ -550,11 +549,10 @@ const buildEditor = ({
 				canvas.loadFromJSON(data).then(() => {
 					const objects = canvas.getObjects();
 					
-					// Find workspace - it's typically the first Rect with name 'clip' or the first unselectable Rect
 					const workspace = objects.find((obj) => {
 						const name = (obj as fabric.FabricObject & { name?: string }).name;
 						return name === 'clip' || (obj.type === 'Rect' && obj.selectable === false);
-					});
+					}) || (objects[0] && objects[0].type === 'Rect' ? objects[0] : undefined);
 
 					// Restore interactivity for all objects
 					objects.forEach((object) => {
@@ -1099,6 +1097,7 @@ export const useEditor = ({
 				fill: 'white',
 				selectable: false,
 				hasControls: false,
+				evented: false,
 				shadow: new fabric.Shadow({
 					color: 'rgba(0,0,0,0.8)',
 					blur: 5,

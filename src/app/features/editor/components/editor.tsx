@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActiveTool } from '@/app/features/editor/types';
+import { ActiveTool, JSON_KEYS } from '@/app/features/editor/types';
 import { useEditor } from '@/app/features/editor/hooks/use-editor';
 import * as fabric from 'fabric';
 import { Navbar } from './navbar';
@@ -48,21 +48,26 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const fabricRef = useRef<fabric.Canvas | null>(null);
 
+	const initializedProject = useRef<string | null>(null);
+	const [isSaved, setIsSaved] = useState(true);
+
 	// Load project data if projectId is provided
 	useEffect(() => {
-		if (projectId && editor) {
+		if (projectId && editor && initializedProject.current !== projectId) {
 			const project = projectStorage.getById(projectId);
 			if (project && project.canvasData) {
-				editor.canvas.loadFromJSON(project.canvasData).then(() => {
-					editor.canvas.renderAll();
-					editor.autoZoom();
-					setIsSaved(true); // loaded state is "saved"
-				});
+				initializedProject.current = projectId;
+				const jsonString = typeof project.canvasData === 'string' 
+					? project.canvasData 
+					: JSON.stringify(project.canvasData);
+				editor.loadJson(jsonString);
+				setIsSaved(true); // loaded state is "saved"
+			} else {
+				// Mark as initialized even if no canvas data exists yet
+				initializedProject.current = projectId;
 			}
 		}
 	}, [projectId, editor]);
-
-	const [isSaved, setIsSaved] = useState(true);
 
 	// Auto-save functionality — depend on canvas (stable) not editor (recreated often)
 	const canvas = editor?.canvas;
@@ -71,7 +76,8 @@ export const Editor: React.FC<EditorProps> = ({ projectId, defaultWidth, default
 		if (!projectId || !canvas) return;
 
 		const saveProject = async () => {
-			const json = canvas.toJSON();
+			// @ts-expect-error toJSON accepts an array of properties to include
+			const json = canvas.toJSON(JSON_KEYS);
 
 			// Generate thumbnail using Fabric's native toDataURL
 			const width = canvas.width || 800;

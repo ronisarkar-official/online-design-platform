@@ -19,9 +19,10 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
 		const center = canvas.getCenter();
 
 		const zoomRatio = 0.85;
-		const localWorkspace = canvas
-			.getObjects()
-			.find((object) => (object as fabric.FabricObject & { name?: string }).name === 'clip');
+		const objects = canvas.getObjects();
+		const localWorkspace = objects.find(
+			(object) => (object as fabric.FabricObject & { name?: string }).name === 'clip'
+		) || (objects[0] && objects[0].type === 'Rect' ? objects[0] : undefined);
 
 		if (!localWorkspace) return;
 
@@ -56,8 +57,13 @@ export const useAutoResize = ({ canvas, container }: UseAutoResizeProps) => {
 		canvas.setViewportTransform(viewportTransform);
 
 		const cloned = await localWorkspace.clone();
+		// Set canvas clip path so objects going outside the main workspace are hidden
 		// eslint-disable-next-line
 		canvas.clipPath = cloned;
+		
+		localWorkspace.set({
+			evented: false,
+		});
 		canvas.requestRenderAll();
 	}, [canvas, container]);
 
